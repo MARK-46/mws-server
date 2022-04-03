@@ -12,7 +12,7 @@
   "license": "ISC",
   "publishConfig": {
     "access": "public",
-    "registry":"https://npm.pkg.github.com"
+    "@mark46:registry": "https://npm.pkg.github.com"
   },
   "main": "build/index.js",
   "types": "build/index.d.js",
