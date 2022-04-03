@@ -22,79 +22,61 @@ import { clearInterval } from 'timers';
 import { IncomingMessage } from 'http';
 import { IMWsServerKeyValue } from './';
 
-enum MWsReadyState
-{
-    CONNECTING, OPEN, CLOSING, CLOSED,
-}
-
-export class MWsServerClient
-{
+export class MWsServerClient {
     private _closeTimer: any = null;
-    private _readyState: MWsReadyState = MWsReadyState.CONNECTING;
     private _receiver: MWsServerReceiver | undefined;
     private _verifyTimeout: any;
     private readonly _id: string;
     private _clientInfo: IMWsServerKeyValue = {};
     private _clientSettings: IMWsServerKeyValue = { online: false };
 
-    public constructor(public server: MWsServerBase, public _socket: Socket, public _req: IncomingMessage)
-    {
+    public constructor(public server: MWsServerBase, public _socket: Socket, public _req: IncomingMessage) {
         this._id = CreateID();
         Log.debug(LogTypes.CONNECTING, this.id, this._socket.remoteAddress, this._socket.remotePort);
         this.setClientInfo({});
     }
 
-    get req(): IncomingMessage
-    {
+    get req(): IncomingMessage {
         return this._req;
     }
 
-    get ip(): string
-    {
+    get ip(): string {
         return this._socket.remoteAddress || '0.0.0.0';
     }
 
-    get port(): number
-    {
+    get port(): number {
         return this._socket.remotePort || 0;
     }
 
-    get id(): string
-    {
+    get id(): string {
         return this._id;
     }
 
-    get clientInfo(): IMWsServerKeyValue
-    {
+    get clientInfo(): IMWsServerKeyValue {
         return this._clientInfo;
     }
 
-    public setClientInfo(value: IMWsServerKeyValue)
-    {
+    public setClientInfo(value: IMWsServerKeyValue) {
         this._clientInfo = value;
         this._clientInfo.client_id = this._id;
     }
 
-    get clientSettings(): IMWsServerKeyValue
-    {
+    get clientSettings(): IMWsServerKeyValue {
         return this._clientSettings;
     }
 
-    public setClientSettings(value: IMWsServerKeyValue)
-    {
+    public setClientSettings(value: IMWsServerKeyValue) {
         this._clientSettings = value;
     }
 
-    public setSocket(head: string | any[], options: { maxPayload: any; skipUTF8Validation: any; })
-    {
+    public setSocket(head: string | any[], options: { maxPayload: any; skipUTF8Validation: any; }) {
         this._receiver = new MWsServerReceiver(this.server, this, {
             maxPayload: options.maxPayload,
             skipUTF8Validation: options.skipUTF8Validation
         });
 
         this._receiver.on('error', this.receiverOnError.bind(this));
-        this._receiver.on('conclude', (code: number, reason: any) =>
-        {
+        this._receiver.on('conclude', (code: number, reason: any) => {
             this.emitClose();
             reason = GetWSCodeReason(code, reason.toString());
             Log.debug(LogTypes.DISCONNECTED, this.id, this._socket.remoteAddress, this._socket.remotePort, code, reason);
@@ -104,8 +86,7 @@ export class MWsServerClient
         this._socket.setTimeout(0);
         this._socket.setNoDelay();
 
-        if (head.length > 0)
-        {
+        if (head.length > 0) {
             this._socket.unshift(head);
         }
 
@@ -114,12 +95,8 @@ export class MWsServerClient
         this._socket.on('end', this.socketOnEnd.bind(this));
         this._socket.on('error', this.socketOnError.bind(this));
 
-        this._readyState = MWsReadyState.OPEN;
-
-        this._verifyTimeout = setTimeout(() =>
-        {
-            if (this._verify)
-            {
+        this._verifyTimeout = setTimeout(() => {
+            if (this._verify) {
                 return clearInterval(this._verifyTimeout);
             }
             const closeReason = CloseProtocol.S5103('Server', 'Invalid client.');
@@ -127,19 +104,14 @@ export class MWsServerClient
         }, 5000);
     }
 
-    private emitClose()
-    {
-        if (!this._socket)
-        {
-            this._readyState = MWsReadyState.CLOSED;
+    private emitClose() {
+        if (!this._socket) {
             return;
         }
         this._receiver?.removeAllListeners();
-        this._readyState = MWsReadyState.CLOSED;
     }
 
-    private receiverOnError(err: { message: string; })
-    {
+    private receiverOnError(err: { message: string; }) {
         this._socket.removeListener('data', this._receiver!.write.bind(this._receiver!));
         process.nextTick((stream: { resume: () => any; }) => stream.resume(), this._socket);
         const closeReason = CloseProtocol.S5105(err.message);
@@ -148,20 +120,16 @@ export class MWsServerClient
         this.close(closeReason.code, closeReason.reason);
     }
 
-    private socketOnClose()
-    {
+    private socketOnClose() {
         if (!this._receiver) return;
         if (!this._socket) return;
         this._socket.removeListener('close', this.socketOnClose.bind(this));
         this._socket.removeListener('data', this._receiver.write.bind(this._receiver));
         this._socket.removeListener('end', this.socketOnEnd.bind(this));
 
-        this._readyState = MWsReadyState.CLOSING;
-
         let chunk;
 
-        if (!(this._socket as any)['_readableState']['endEmitted'] && !this._receiver.writableState.errorEmitted && (chunk = this._socket?.read()) !== null)
-        {
+        if (!(this._socket as any)['_readableState']['endEmitted'] && !this._receiver.writableState.errorEmitted && (chunk = this._socket?.read()) !== null) {
             this._receiver?.write(chunk);
         }
 
@@ -169,31 +137,23 @@ export class MWsServerClient
 
         clearTimeout(this._closeTimer);
 
-        if (this._receiver.writableState.finished || this._receiver.writableState.errorEmitted)
-        {
+        if (this._receiver.writableState.finished || this._receiver.writableState.errorEmitted) {
             this.emitClose();
         }
-        else
-        {
+        else {
             this._receiver.on('error', this.emitClose.bind(this));
             this._receiver.on('finish', this.emitClose.bind(this));
         }
     }
 
-    private socketOnEnd()
-    {
-        this._readyState = MWsReadyState.CLOSING;
+    private socketOnEnd() {
         this._receiver?.end();
         this._socket.end();
     }
 
-    private socketOnError()
-    {
+    private socketOnError() {
         this._socket.removeListener('error', this.socketOnError.bind(this));
-        this._socket.on('error', () =>
-        {
-        });
-        this._readyState = MWsReadyState.CLOSING;
+        this._socket.on('error', () => { });
         this._socket.destroy();
     }
 
@@ -202,23 +162,19 @@ export class MWsServerClient
      */
     private _verify: boolean = false;
 
-    public isVerified(header: Buffer, credentials: Buffer): boolean
-    {
+    public isVerified(header: Buffer, credentials: Buffer): boolean {
         if ((header[0] + header[1]) == 0 && !this._verify) // first
         {
             this._verify = true;
             clearInterval(this._verifyTimeout);
-            if (!this.server.onAuthentication(this, JSONParse(credentials.toString())))
-            {
+            if (!this.server.onAuthentication(this, JSONParse(credentials.toString()))) {
                 const unAuthRes = CloseProtocol.S5101();
                 this.close(unAuthRes.code, unAuthRes.reason);
                 return false;
             }
             Log.debug(LogTypes.CONNECTED, this.id, this._socket.remoteAddress, this._socket.remotePort);
-            this.send(0, `${ this.id }${ JSONStringify(this.clientInfo) }`, (err?: Error) =>
-            {
-                if (err)
-                {
+            this.send(0, `${this.id}${JSONStringify(this.clientInfo)}`, (err?: Error) => {
+                if (err) {
                     Log.debug(LogTypes.DISCONNECTED, this.id, this._socket.remoteAddress, this._socket.remotePort, -1, err?.message || err);
                 }
                 this.server.onConnect(this);
@@ -226,8 +182,7 @@ export class MWsServerClient
         }
         else // any
         {
-            if (!this._verify)
-            {
+            if (!this._verify) {
                 const closeReason = CloseProtocol.S5103('Server', 'Invalid client.');
                 this.close(closeReason.code, closeReason.reason);
                 return false;
@@ -248,23 +203,19 @@ export class MWsServerClient
      *      client.close(closeReason.code, closeReason.reason);
      * ```
      */
-    public close(code: number, reason: string, cb?: ((err?: Error) => void) | undefined): boolean
-    {
-        if (!this._socket.writable)
-        {
+    public close(code: number, reason: string, cb?: ((err?: Error) => void) | undefined): boolean {
+        if (!this._socket.writable) {
             cb?.call(null, new Error('connection closed'));
             return false;
         }
 
         let payload, meta;
 
-        if (code !== undefined && code !== 1005)
-        {
+        if (code !== undefined && code !== 1005) {
             payload = Buffer.from(reason === undefined ? '--' : '--' + reason);
             payload.writeUInt16BE(code, 0);
         }
-        else
-        {
+        else {
             payload = Buffer.alloc(0);
         }
         meta = CreateFrame(true, 8, payload);
@@ -283,31 +234,26 @@ export class MWsServerClient
      *      client.send(SignalCodes.S2C.ONLINE_STATS, { "client_count": server.clientCount() });
      * ```
      */
-    public send(code: number, data: Buffer | string | boolean | number | object | string[] | number[] | object[], cb?: any): boolean
-    {
-        if (!this._socket.writable)
-        {
+    public send(code: number, data: Buffer | string | boolean | number | object | string[] | number[] | object[], cb?: any): boolean {
+        if (!this._socket.writable) {
             cb?.call(null, new Error('connection closed'));
             return false;
         }
 
         const signalData = CreateSignalData(code, data);
-        if (signalData.length >= this.server.options.maxPayload)
-        {
+        if (signalData.length >= this.server.options.maxPayload) {
             Log.error(`SendError / Max payload size exceeded (%s Bytes of %s Bytes)`, signalData.length, this.server.options.maxPayload);
             cb?.call(null, new Error('Max payload size exceeded'));
             return false;
         }
-        return this.sendBinary(signalData, (err) =>
-        {
+        return this.sendBinary(signalData, (err) => {
             if (err) this.receiverOnError(err);
             Log.debug(LogTypes.SIGNAL_SEND, this.id, code, signalData.slice(4), err);
             cb?.call(this, err);
         });
     }
 
-    private sendBinary(payload: Buffer, cb?: ((err?: Error | undefined) => void) | undefined)
-    {
+    private sendBinary(payload: Buffer, cb?: ((err?: Error | undefined) => void) | undefined) {
         let meta = CreateFrame(true, 2, payload);
         return this._socket.write(Buffer.concat([
             meta,
@@ -321,8 +267,7 @@ export class MWsServerClient
      *      client.kick("Admin", "You broke a rule.");
      * ```
      */
-    public kick(user: string, reason: string, cb?: (() => void) | undefined): boolean
-    {
+    public kick(user: string, reason: string, cb?: (() => void) | undefined): boolean {
         const closedReason = CloseProtocol.S5103(user, reason);
         return this.close(closedReason.code, closedReason.reason, cb);
     }
@@ -333,8 +278,7 @@ export class MWsServerClient
      *      client.ban("Admin", "You broke a rule.", "2 WEEKS");
      * ```
      */
-    public ban(user: string, reason: string, length: string, cb?: (() => void) | undefined): boolean
-    {
+    public ban(user: string, reason: string, length: string, cb?: (() => void) | undefined): boolean {
         const closedReason = CloseProtocol.S5104(user, reason, length);
         return this.close(closedReason.code, closedReason.reason, cb);
     }

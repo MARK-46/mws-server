@@ -14,21 +14,17 @@ const keyRegex = /^[+/0-9A-Za-z]{22}==$/;
 const RUNNING = 0;
 const CLOSED = 1;
 
-export abstract class MWsServerBase extends EventEmitter
-{
+export abstract class MWsServerBase extends EventEmitter {
     private _state: number = CLOSED;
     private _server: HTTPServer | HTTPSServer | null;
 
-    protected constructor(public options: IMWsServerOptions, requestListener?: RequestListener)
-    {
+    protected constructor(public options: IMWsServerOptions, requestListener?: RequestListener) {
         super();
         this.options = options;
-        if (this.options.tsl && this.options.tslOptions)
-        {
+        if (this.options.tsl && this.options.tslOptions) {
             this._server = new HTTPSServer(this.options.tslOptions, requestListener);
         }
-        else
-        {
+        else {
             this._server = new HTTPServer(requestListener);
         }
         this._server.on('upgrade', this.handleUpgrade.bind(this));
@@ -53,10 +49,8 @@ export abstract class MWsServerBase extends EventEmitter
      *      server.start(app);
      * ```
      */
-    public start(listeningListener?: RequestListener): HTTPServer | HTTPSServer | null
-    {
-        if (this._server && this._state == CLOSED)
-        {
+    public start(listeningListener?: RequestListener): HTTPServer | HTTPSServer | null {
+        if (this._server && this._state == CLOSED) {
             this._state = RUNNING;
             if (listeningListener) {
                 this._server.on('request', listeningListener);
@@ -66,25 +60,21 @@ export abstract class MWsServerBase extends EventEmitter
         return null;
     }
 
-    public close(): void
-    {
-        if (this._state === RUNNING)
-        {
+    public close(): void {
+        if (this._state === RUNNING) {
             this._server!!.off('upgrade', this.handleUpgrade.bind(this));
             this._server = null;
             this._state = CLOSED;
         }
     }
 
-    private handleUpgrade(req: any, socket: any, head: any)
-    {
+    private handleUpgrade(req: any, socket: any, head: any) {
         socket.on('error', socket.destroy.bind(socket));
 
         const key = req.headers!['sec-websocket-key'] !== undefined ? req.headers!['sec-websocket-key'] : false;
         const version = +req.headers!['sec-websocket-version'];
 
-        if (req.method !== 'GET' || req.headers.upgrade.toLowerCase() !== 'websocket' || !key || !keyRegex.test(key) || (version !== 8 && version !== 13))
-        {
+        if (req.method !== 'GET' || req.headers.upgrade.toLowerCase() !== 'websocket' || !key || !keyRegex.test(key) || (version !== 8 && version !== 13)) {
             return this.abortHandshake(socket, 400);
         }
 
@@ -92,15 +82,12 @@ export abstract class MWsServerBase extends EventEmitter
         this.completeUpgrade(key, secWebSocketProtocol, req, socket, head);
     }
 
-    private completeUpgrade(key: string, protocols: any, req: IncomingMessage, socket: Socket, head: any)
-    {
-        if (!socket.readable || !socket.writable)
-        {
+    private completeUpgrade(key: string, protocols: any, req: IncomingMessage, socket: Socket, head: any) {
+        if (!socket.readable || !socket.writable) {
             return socket.destroy();
         }
 
-        if (this._state > RUNNING)
-        {
+        if (this._state > RUNNING) {
             return this.abortHandshake(socket, 503);
         }
 
@@ -110,9 +97,9 @@ export abstract class MWsServerBase extends EventEmitter
             'HTTP/1.1 101 Switching Protocols (MARK-46)',
             'Upgrade: websocket',
             'Connection: Upgrade',
-            `Sec-WebSocket-Accept: ${ CreateAcceptKey(key) }`,
-            `Sec-WebSocket-Protocol: ${ protocols }`,
-            `Sec-WebSocket-ID: ${ client.id }`
+            `Sec-WebSocket-Accept: ${CreateAcceptKey(key)}`,
+            `Sec-WebSocket-Protocol: ${protocols}`,
+            `Sec-WebSocket-ID: ${client.id}`
         ];
 
         socket.write(headers.concat('\r\n').join('\r\n'));
@@ -124,10 +111,8 @@ export abstract class MWsServerBase extends EventEmitter
         });
     }
 
-    private abortHandshake(socket: Socket, code: number, message?: string | DataView | ArrayBuffer | undefined, headers?: { [x: string]: any; } | undefined)
-    {
-        if (socket.writable)
-        {
+    private abortHandshake(socket: Socket, code: number, message?: string | DataView | ArrayBuffer | undefined, headers?: { [x: string]: any; } | undefined) {
+        if (socket.writable) {
             message = message || STATUS_CODES[code];
             headers = {
                 Connection: 'close',
@@ -135,7 +120,7 @@ export abstract class MWsServerBase extends EventEmitter
                 'Content-Length': message ? Buffer.byteLength(message) : 0, ...headers
             };
 
-            socket.write(`HTTP/1.1 ${ code } ${ STATUS_CODES[code] } (MARK-46)\r\n` + Object.keys(headers).map((h) => `${ h }: ${ headers!![h] }`).join('\r\n') + '\r\n\r\n' + message);
+            socket.write(`HTTP/1.1 ${code} ${STATUS_CODES[code]} (MARK-46)\r\n` + Object.keys(headers).map((h) => `${h}: ${headers!![h]}`).join('\r\n') + '\r\n\r\n' + message);
         }
 
         socket.removeListener('error', socket.destroy.bind(socket));
