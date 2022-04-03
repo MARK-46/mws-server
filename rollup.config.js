@@ -23,7 +23,7 @@ export default {
     ],
     plugins: [
         external(),
-        resolve(),
+        resolve({ preferBuiltins: true }),
         typescript({
             rollupCommonJSResolveHack: true,
             exclude: "**/__tests__/**",
