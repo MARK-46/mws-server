@@ -1,6 +1,6 @@
 {
   "name": "@mark46/mws-server",
-  "version": "1.0.0",
+  "version": "1.0.2",
   "description": "WebSocket Server",
   "keywords": [
     "ws",
@@ -11,8 +11,7 @@
   "author": "MARK46 <mark.38.98.ii@gmail.com>",
   "license": "ISC",
   "publishConfig": {
-    "access": "public",
-    "@mark46:registry": "https://npm.pkg.github.com"
+    "access": "public"
   },
   "main": "build/index.js",
   "types": "build/index.d.js",
