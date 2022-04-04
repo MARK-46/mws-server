@@ -82,7 +82,7 @@ export abstract class MWsServerBase extends EventEmitter {
         this.completeUpgrade(key, secWebSocketProtocol, req, socket, head);
     }
 
-    private completeUpgrade(key: string, protocols: any, req: IncomingMessage, socket: Socket, head: any) {
+    private completeUpgrade(key: string, protocols: any, req: IncomingMessage, socket: Socket, _: any) {
         if (!socket.readable || !socket.writable) {
             return socket.destroy();
         }
@@ -105,7 +105,7 @@ export abstract class MWsServerBase extends EventEmitter {
         socket.write(headers.concat('\r\n').join('\r\n'));
         socket.removeListener('error', socket.destroy.bind(socket));
 
-        client.setSocket(head, {
+        client.setSocket({
             maxPayload: this.options.maxPayload,
             skipUTF8Validation: false
         });
